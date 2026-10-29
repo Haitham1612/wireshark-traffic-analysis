@@ -44,6 +44,106 @@ This showed me that encrypted connections can still expose some information, suc
 
 ![TLS Client Hello showing SNI and supported versions](screenshots/04-tls-client-hello.png)
 
+## 4. ICMP ping 
+While Wireshark was capturing on Ethernet, I ran: 
+
+
+`ping -n 4 1.1.1.1`
+
+
+I used the `icmp` filter to find the echo requests and replies. The windows command showed four packets sent and four received.
+
+This let me compare the ping result in Command prompt with the actual ICMP packets in Wireshark
+
+![ICMP echo requests and replies in Wireshark](screenshots/05-icmp-request-reply.png)
+
+## 5. Nmap port-scan samples
+or this part I used sample captures from the Wireshark Sample Captures collection. I did not run a scan against a third-party system.
+
+### SYN packets
+
+In the `nmap_standard_scan` sample, I saw host 192.168.100.103 sending TCP SYN packets to 192.168.100.102 across multiple destination ports.
+
+Filter used:
 
 
 
+tcp.flags.syn == 1 && tcp.flags.ack == 0
+
+
+
+Repeatedly trying different ports on the same target is consistent with port-scanning activity.
+
+![SYN probes to multiple target ports in the Nmap sample](screenshots/07-port-scan-target-ports.png)
+
+### SYN-ACK packets
+
+In a separate sample, `nmap_OS_scan_successful`,  I saw SYN-ACK responses from 192.168.100.101 to 192.168.100.103. The packets included responses associated with target ports 445 and 139.
+
+Filter used:
+
+
+
+tcp.flags.syn == 1 && tcp.flags.ack == 1
+
+
+A SYN-ACK usually means the port responded to the connection attempt and is consistent with an open TCP port.
+
+![SYN-ACK responses in the Nmap sample capture](screenshots/08-scan-syn-ack-responses.png)
+
+### TCP resets
+
+I also looked at TCP RST packets:
+
+
+tcp.flags.reset == 1
+
+
+
+To focus on resets travelling from the target to the scanner in that sample, I used:
+
+
+
+ip.src == 192.168.100.101 && ip.dst == 192.168.100.103 && tcp.flags.reset == 1
+
+
+The direction of a reset matters. A reset from the target can indicate a rejected connection or a closed port, while a reset from the scanner can be used to end a connection after a response. The surrounding packets need to be checked before deciding what happened.
+
+**Important limitation:** the SYN packets, SYN-ACK responses and reset packets I looked at came from separate sample captures. They use different target IP addresses, so I am treating them as separate examples rather than claiming they are all part of one scan.
+
+![TCP reset packets in the Nmap sample capture](screenshots/09-port-scan-tcp-resets.png)
+
+![TCP reset responses from the target to the scanner](screenshots/10-target-tcp-reset-responses.png)
+
+## Filters I found useful
+
+| What I wanted to see | Filter |
+|---|---|
+| DNS | `dns` |
+| DNS queries | `dns.flags.response == 0` |
+| DNS responses | `dns.flags.response == 1` |
+| TCP | `tcp` |
+| TLS | `tls` |
+| ICMP | `icmp` |
+| Initial TCP SYN packets | `tcp.flags.syn == 1 && tcp.flags.ack == 0` |
+| TCP SYN-ACK packets | `tcp.flags.syn == 1 && tcp.flags.ack == 1` |
+| TCP reset packets | `tcp.flags.reset == 1` |
+
+## Evidence files
+
+The screenshots are embedded above and are also available in the screenshots folder
+## What I learned
+
+- Display filters make it easier to focus on the traffic I want to inspect.
+- TCP flags help show whether a connection is being started, accepted or reset.
+- DNS can reveal requested domain names and returned records.
+- TLS protects application data, but some handshake details can still be visible.
+- Packet evidence needs context. One packet alone is not always enough to explain an event.
+
+## Limitations
+
+- This was a small practice lab, not continuous monitoring of a real network.
+- The scan examples were separate sample captures and should not be combined into one timeline.
+- I did not decrypt TLS traffic.
+- A capture only shows packets visible to the selected network interface.
+- The screenshots and selected capture files still need to be present in the repository for another person to review the evidence.
